@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LOOKSMAX · AI Facial Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            orbitron: ['Orbitron', 'sans-serif'],
+            inter: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            neon: {
+              cyan: '#00f5ff',
+              pink: '#ff00aa',
+              purple: '#b026ff',
+              green: '#39ff14',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --bg: #05050a;
+      --card: #0c0c14;
+      --border: rgba(0, 245, 255, 0.15);
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      color: #e0e0e0;
+      overflow-x: hidden;
+    }
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(0,245,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,245,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .neon-border {
+      border: 1px solid var(--border);
+      box-shadow: 0 0 20px rgba(0,245,255,0.05), inset 0 0 20px rgba(0,245,255,0.02);
+    }
+    .neon-text {
+      text-shadow: 0 0 10px rgba(0,245,255,0.6), 0 0 30px rgba(0,245,255,0.3);
+    }
+    .score-glow {
+      text-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
+    }
+    .scan-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #00f5ff, #ff00aa, #00f5ff, transparent);
+      box-shadow: 0 0 15px #00f5ff, 0 0 30px #ff00aa;
+      animation: scan 2s ease-in-out infinite;
+      z-index: 20;
+      pointer-events: none;
+    }
+    @keyframes scan {
+      0% { top: 0%; opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { top: 100%; opacity: 0.3; }
+    }
+    .face-mesh {
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 8px, rgba(0,245,255,0.08) 8px, rgba(0,245,255,0.08) 9px),
+        repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(0,245,255,0.08) 8px, rgba(0,245,255,0.08) 9px);
+      z-index: 15;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .face-mesh.active { opacity: 1; }
+    .param-btn {
+      transition: all 0.2s;
+      border: 1px solid rgba(0,245,255,0.2);
+    }
+    .param-btn:hover, .param-btn.active {
+      border-color: #00f5ff;
+      background: rgba(0,245,255,0.1);
+      box-shadow: 0 0 12px rgba(0,245,255,0.2);
+    }
+    .progress-bar {
+      height: 4px;
+      background: linear-gradient(90deg, #00f5ff, #ff00aa);
+      transition: width 0.4s ease;
+    }
+    #drop-zone.dragover {
+      border-color: #00f5ff;
+      background: rgba(0,245,255,0.08);
+    }
+    .fade-in {
+      animation: fadeIn 0.6s ease forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0a0a12; }
+    ::-webkit-scrollbar-thumb { background: #00f5ff33; border-radius: 3px; }
+  </style>
+</head>
+<body class="grid-bg">
+  <!-- Header -->
+  <header class="border-b border-cyan-500/20 backdrop-blur-md sticky top-0 z-50 bg-[#05050a]/80">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-pink-500 flex items-center justify-center font-orbitron font-black text-black text-sm">LM</div>
+        <div>
+          <h1 class="font-orbitron font-bold text-xl tracking-wider neon-text text-cyan-300">LOOKSMAX</h1>
+          <p class="text-[10px] text-cyan-500/60 tracking-[0.3em] uppercase">Neural Facial Engine</p>
+        </div>
+      </div>
+      <div class="text-xs text-gray-500 font-mono hidden sm:block">REAL PHOTO ANALYSIS · NO FAKE SCORES</div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <div class="text-center mb-10">
+      <h2 class="font-orbitron text-3xl md:text-4xl font-bold mb-3 bg-gradient-to-r from-cyan-300 via-white to-pink-400 bg-clip-text text-transparent">
+        Objective Looks Analysis
+      </h2>
+      <p class="text-gray-400 max-w-2xl mx-auto text-sm leading-relaxed">
+        Загрузи фото лица. Система реально сканирует геометрию, симметрию, кожу и черты через компьютерное зрение.
+        Кнопки ниже — только подсказки. Оценка строится <span class="text-cyan-400">исключительно из пикселей фото</span>.
+      </p>
+    </div>
+
+    <div class="grid lg:grid-cols-5 gap-6">
+      <!-- LEFT -->
+      <div class="lg:col-span-3 space-y-5">
+        <div id="drop-zone"
+             class="neon-border rounded-2xl p-8 text-center cursor-pointer transition-all bg-[#0c0c14]/80 relative overflow-hidden"
+             onclick="document.getElementById('file-input').click()">
+          <input type="file" id="file-input" accept="image/*" class="hidden" />
+          <div id="upload-prompt">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full border border-cyan-500/30 flex items-center justify-center">
+              <svg class="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <p class="text-cyan-300 font-medium mb-1">Загрузить фото лица</p>
+            <p class="text-gray-500 text-xs">JPG · PNG · WEBP · желательно анфас, хорошее освещение</p>
+          </div>
+
+          <div id="preview-wrap" class="hidden relative mx-auto max-w-md">
+            <div class="relative inline-block rounded-xl overflow-hidden border border-cyan-500/30">
+              <img id="preview-img" class="max-h-[420px] w-auto block" alt="preview" />
+              <canvas id="overlay-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+              <div class="face-mesh" id="face-mesh"></div>
+              <div class="scan-line hidden" id="scan-line"></div>
+            </div>
+            <button id="clear-btn" onclick="event.stopPropagation(); resetAll()"
+                    class="mt-3 text-xs text-pink-400 hover:text-pink-300 underline">Удалить фото</button>
+          </div>
+        </div>
+
+        <div class="neon-border rounded-2xl p-5 bg-[#0c0c14]/60">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-orbitron text-xs tracking-widest text-cyan-400 uppercase">Фильтры / подсказки</h3>
+            <span class="text-[10px] text-gray-600">не влияют на оценку</span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs" id="filters">
+            <button type="button" class="param-btn rounded-lg px-3 py-2" data-group="gender" data-val="male">♂ Мужчина</button>
+            <button type="button" class="param-btn rounded-lg px-3 py-2" data-group="gender" data-val="female">♀ Женщина</button>
+            <button type="button" class="param-btn rounded-lg px-3 py-2" data-group="lighting" data-val="good">Хороший свет</button>
+            <button type="button" class="param-btn rounded-lg px-3 py-2" data-group="angle" data-val="front">Анфас</button>
+            <button type="button" class="param-btn rounded-lg px-3 py-2" data-group="angle" data-val="side">Профиль</button>
+            <button type="button" class="param-btn rounded-lg px-3 py-2" data-group="makeup" data-val="none">Без макияжа</button>
+          </div>
+        </div>
+
+        <button id="analyze-btn" disabled
+                class="w-full py-4 rounded-xl font-orbitron font-bold tracking-widest text-sm uppercase
+                       bg-gradient-to-r from-cyan-500/20 to-pink-500/20 border border-cyan-400/40
+                       text-cyan-300 hover:from-cyan-500/30 hover:to-pink-500/30 hover:border-cyan-300
+                       disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+          ▶ ЗАПУСТИТЬ СКАНИРОВАНИЕ
+        </button>
+
+        <div id="status" class="text-center text-sm text-gray-500 font-mono min-h-[24px]">Загрузка библиотеки face-api…</div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="lg:col-span-2 space-y-5">
+        <div id="results-placeholder" class="neon-border rounded-2xl p-8 bg-[#0c0c14]/60 text-center h-full min-h-[400px] flex flex-col items-center justify-center">
+          <div class="w-20 h-20 rounded-full border border-dashed border-cyan-500/20 flex items-center justify-center mb-4">
+            <span class="text-3xl opacity-30">👁</span>
+          </div>
+          <p class="text-gray-500 text-sm">Результаты появятся после анализа фото</p>
+        </div>
+
+        <div id="results" class="hidden space-y-5">
+          <div class="neon-border rounded-2xl p-6 bg-[#0c0c14]/80 text-center fade-in">
+            <p class="text-[10px] tracking-[0.4em] text-cyan-500/70 uppercase mb-2">Общая оценка</p>
+            <div id="score-value" class="font-orbitron text-6xl font-black score-glow">—</div>
+            <p id="score-label" class="mt-2 text-sm text-gray-400"></p>
+            <div class="mt-4 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div id="score-bar" class="progress-bar h-full rounded-full" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div class="neon-border rounded-2xl p-5 bg-[#0c0c14]/80 fade-in">
+            <h3 class="font-orbitron text-xs tracking-widest text-cyan-400 uppercase mb-4">Параметры лица</h3>
+            <div id="params-list" class="space-y-3 text-sm"></div>
+          </div>
+
+          <div class="neon-border rounded-2xl p-5 bg-[#0c0c14]/80 fade-in border-pink-500/20">
+            <h3 class="font-orbitron text-xs tracking-widest text-pink-400 uppercase mb-4">Минусы / риски</h3>
+            <ul id="minuses-list" class="space-y-2 text-sm text-gray-300"></ul>
+          </div>
+
+          <div class="neon-border rounded-2xl p-5 bg-[#0c0c14]/80 fade-in">
+            <h3 class="font-orbitron text-xs tracking-widest text-green-400 uppercase mb-4">Looksmaxxing советы</h3>
+            <ul id="advice-list" class="space-y-2 text-sm text-gray-300"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-8 text-[10px] text-gray-600 font-mono">
+    LOOKSMAX ENGINE · Client-side face-api.js · Honest scoring · Not medical advice
+  </footer>
+
+  <!-- 1) Сначала face-api (IIFE → глобальный faceapi). БЕЗ defer. -->
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
+  <!-- 2) Приложение только после библиотеки -->
+  <script>
+(function () {
+  'use strict';
+
+  const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model';
+
+  let modelsLoaded = false;
+  let currentImage = null;
+  let detectionResult = null;
+  const filters = { gender: null, lighting: null, angle: null, makeup: null };
+
+  function setStatus(msg) {
+    const el = document.getElementById('status');
+    if (el) el.textContent = msg;
+  }
+
+  function sleep(ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
+  }
+
+  // ---------- Models ----------
+  async function loadModels() {
+    if (typeof faceapi === 'undefined') {
+      setStatus('Ошибка: faceapi не загрузился. Проверьте интернет / CDN.');
+      console.error('faceapi is undefined after script load');
+      return;
+    }
+
+    setStatus('Загрузка нейросетевых моделей…');
+    try {
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+        faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL),
+      ]);
+      modelsLoaded = true;
+      setStatus('Модели готовы. Загрузите фото.');
+      const img = document.getElementById('preview-img');
+      if (img && img.src && currentImage) {
+        document.getElementById('analyze-btn').disabled = false;
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus('Ошибка загрузки моделей: ' + (e.message || e));
+    }
+  }
+
+  // ---------- Filters (hints only) ----------
+  document.querySelectorAll('.param-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var group = btn.dataset.group;
+      var val = btn.dataset.val;
+      document.querySelectorAll('.param-btn[data-group="' + group + '"]').forEach(function (b) {
+        b.classList.remove('active');
+      });
+      if (filters[group] === val) {
+        filters[group] = null;
+      } else {
+        filters[group] = val;
+        btn.classList.add('active');
+      }
+    });
+  });
+
+  // ---------- File handling ----------
+  var fileInput = document.getElementById('file-input');
+  var dropZone = document.getElementById('drop-zone');
+
+  fileInput.addEventListener('change', function (e) {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', function () {
+    dropZone.classList.remove('dragover');
+  });
+  dropZone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file.type.startsWith('image/')) {
+      setStatus('Нужен файл изображения.');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var img = document.getElementById('preview-img');
+      img.onload = function () {
+        currentImage = img;
+        document.getElementById('upload-prompt').classList.add('hidden');
+        document.getElementById('preview-wrap').classList.remove('hidden');
+        document.getElementById('analyze-btn').disabled = !modelsLoaded;
+        document.getElementById('results').classList.add('hidden');
+        document.getElementById('results-placeholder').classList.remove('hidden');
+        detectionResult = null;
+        clearOverlay();
+        setStatus(modelsLoaded
+          ? 'Фото загружено. Нажмите «Запустить сканирование».'
+          : 'Фото загружено. Ждём модели…');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  window.resetAll = function () {
+    currentImage = null;
+    detectionResult = null;
+    fileInput.value = '';
+    document.getElementById('upload-prompt').classList.remove('hidden');
+    document.getElementById('preview-wrap').classList.add('hidden');
+    document.getElementById('analyze-btn').disabled = true;
+    document.getElementById('results').classList.add('hidden');
+    document.getElementById('results-placeholder').classList.remove('hidden');
+    clearOverlay();
+    stopScanAnim();
+    setStatus(modelsLoaded ? 'Модели готовы. Загрузите фото.' : 'Загрузка моделей…');
+  };
+
+  function clearOverlay() {
+    var canvas = document.getElementById('overlay-canvas');
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function startScanAnim() {
+    document.getElementById('face-mesh').classList.add('active');
+    document.getElementById('scan-line').classList.remove('hidden');
+  }
+  function stopScanAnim() {
+    document.getElementById('face-mesh').classList.remove('active');
+    document.getElementById('scan-line').classList.add('hidden');
+  }
+
+  // ---------- Analyze ----------
+  document.getElementById('analyze-btn').addEventListener('click', async function () {
+    if (!currentImage || !modelsLoaded || typeof faceapi === 'undefined') {
+      setStatus('Библиотека или модели ещё не готовы.');
+      return;
+    }
+    var btn = document.getElementById('analyze-btn');
+    btn.disabled = true;
+    startScanAnim();
+    setStatus('Сканирование лица…');
+
+    try {
+      var options = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 });
+      var det = await faceapi
+        .detectSingleFace(currentImage, options)
+        .withFaceLandmarks()
+        .withFaceExpressions()
+        .withAgeAndGender();
+
+      if (!det) {
+        stopScanAnim();
+        setStatus('Лицо не обнаружено. Загрузите чёткое фото анфас.');
+        btn.disabled = false;
+        return;
+      }
+
+      detectionResult = det;
+      drawLandmarks(det);
+      setStatus('Анализ черт и кожи…');
+      await sleep(900);
+
+      var analysis = await analyzeFace(currentImage, det);
+      displayResults(analysis);
+      stopScanAnim();
+      setStatus('Анализ завершён.');
+    } catch (err) {
+      console.error(err);
+      stopScanAnim();
+      setStatus('Ошибка анализа: ' + (err.message || err));
+    }
+    btn.disabled = false;
+  });
+
+  function drawLandmarks(det) {
+    var img = currentImage;
+    var canvas = document.getElementById('overlay-canvas');
+    var displaySize = { width: img.clientWidth, height: img.clientHeight };
+    canvas.width = displaySize.width;
+    canvas.height = displaySize.height;
+    var resized = faceapi.resizeResults(det, displaySize);
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    var box = resized.detection.box;
+    ctx.strokeStyle = 'rgba(0,245,255,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+    var points = resized.landmarks.positions;
+    ctx.fillStyle = 'rgba(0,245,255,0.9)';
+    points.forEach(function (p) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.strokeStyle = 'rgba(255,0,170,0.5)';
+    ctx.beginPath();
+    for (var i = 0; i <= 16; i++) {
+      var p = points[i];
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+  }
+
+  /* ========== CORE ANALYSIS ========== */
+  async function analyzeFace(imgEl, det) {
+    var landmarks = det.landmarks;
+    var positions = landmarks.positions;
+    var box = det.detection.box;
+    var gender = det.gender;
+    var genderProb = det.genderProbability;
+    var age = Math.round(det.age);
+    var expressions = det.expressions;
+
+    function dist(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+    function mid(a, b) {
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    }
+
+    var leftBrow = positions.slice(17, 22);
+    var rightBrow = positions.slice(22, 27);
+    var leftEye = positions.slice(36, 42);
+    var rightEye = positions.slice(42, 48);
+    var mouth = positions.slice(48, 68);
+
+    var faceCenterX = (positions[0].x + positions[16].x) / 2;
+    var faceWidth = dist(positions[0], positions[16]);
+    // Поворот головы (¾ ракурс): nose смещён от центра
+    var yawProxy = Math.abs(positions[30].x - faceCenterX) / (faceWidth + 1e-6);
+    var isAngled = yawProxy > 0.07;
+
+    var symmetryErr = 0;
+    var pairs = [
+      [0,16],[1,15],[2,14],[3,13],[4,12],[5,11],[6,10],[7,9],
+      [17,26],[18,25],[19,24],[20,23],[21,22],
+      [36,45],[37,44],[38,43],[39,42],[40,47],[41,46],
+      [31,35],[32,34]
+    ];
+    pairs.forEach(function (pr) {
+      var l = positions[pr[0]], r = positions[pr[1]];
+      var mirrorRx = 2 * faceCenterX - r.x;
+      symmetryErr += Math.hypot(l.x - mirrorRx, l.y - r.y);
+    });
+    // Мягкий знаменатель
+    var symmetryScore = Math.max(0, Math.min(1, 1 - (symmetryErr / pairs.length) / (faceWidth * 0.14)));
+
+    // На ¾ ракурсе зеркальная симметрия по X всегда «ломается» — не штрафуем
+    if (isAngled) {
+      // Берём нейтральный пол: не 0%, не идеал
+      symmetryScore = Math.max(symmetryScore, 0.62);
+      if (yawProxy > 0.12) symmetryScore = Math.max(symmetryScore, 0.68);
+    }
+    // Пол никогда не 0% на живом лице
+    symmetryScore = Math.max(0.35, symmetryScore);
+
+    var gonialL = positions[4], gonialR = positions[12];
+    var zygL = positions[1], zygR = positions[15];
+    var chin = positions[8];
+    var midJaw = mid(gonialL, gonialR);
+    var jawWidthRatio = dist(gonialL, gonialR) / (dist(zygL, zygR) + 1e-6);
+    var faceHeight = positions[8].y - ((positions[19].y + positions[24].y) / 2);
+    var mouthBottom = positions[57];
+    var chinHeight = (chin.y - mouthBottom.y) / (faceHeight + 1e-6);
+    var cheekY = (positions[1].y + positions[15].y) / 2;
+    var jawDrop = (midJaw.y - cheekY) / (faceWidth + 1e-6);
+    // Многоуровневая ширина по дуге челюсти (gonion в 68pt неточен)
+    var w0 = dist(positions[1], positions[15]);
+    var w2 = dist(positions[3], positions[13]);
+    var w3 = dist(positions[4], positions[12]);
+    var w4 = dist(positions[5], positions[11]);
+    var w5 = dist(positions[6], positions[10]);
+    var t1 = w2 / (w0 + 1e-6);
+    var t2 = w4 / (w2 + 1e-6);
+    var t3 = w5 / (w3 + 1e-6);
+    var multiTaper = (Math.max(0, 1.02 - t1) + Math.max(0, 1.02 - t2) + Math.max(0, 1.05 - t3)) / 3;
+    var midFaceRatio = w2 / (faceWidth + 1e-6);
+
+    var noseTip = positions[30];
+    var eyeLineY = (positions[36].y + positions[45].y) / 2;
+    var noseEyeRatio = (noseTip.y - eyeLineY) / (faceHeight + 1e-6);
+    var selfieTop = noseEyeRatio < 0.27;
+
+    var faceHW = faceHeight / (faceWidth + 1e-6);
+    var ovalScore = Math.max(0, Math.min(1, (faceHW - 1.15) / 0.35));
+
+    var taperScore = Math.max(0, Math.min(1, multiTaper / 0.20));
+    var dropScore = Math.max(0, Math.min(1, (jawDrop - 0.07) / 0.11));
+    var midScore = Math.max(0, Math.min(1, (0.82 - midFaceRatio) / 0.16));
+
+    var chinScore = 0.45;
+    if (chinHeight >= 0.155 && chinHeight <= 0.28) chinScore = 0.80;
+    else if (chinHeight >= 0.135 && chinHeight < 0.155) chinScore = 0.55;
+    else if (chinHeight < 0.135) chinScore = 0.28;
+    else if (chinHeight > 0.30) chinScore = 0.40;
+
+    function angleAt(a, b, c) {
+      var v1x = a.x - b.x, v1y = a.y - b.y;
+      var v2x = c.x - b.x, v2y = c.y - b.y;
+      var d = Math.sqrt((v1x*v1x+v1y*v1y)*(v2x*v2x+v2y*v2y)) + 1e-6;
+      var cos = (v1x*v2x + v1y*v2y) / d;
+      return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
+    }
+    var angL = angleAt(positions[2], positions[4], positions[8]);
+    var angR = angleAt(positions[14], positions[12], positions[8]);
+    var avgJawAngle = (angL + angR) / 2;
+    var angleScore = Math.max(0, Math.min(1, (150 - avgJawAngle) / 50));
+
+    var jawScore = 0.28 * taperScore + 0.16 * dropScore + 0.16 * midScore
+                 + 0.14 * chinScore + 0.14 * angleScore + 0.12 * ovalScore;
+
+    // Studio/анфас — доверяем геометрии больше
+    if (!selfieTop) {
+      jawScore += 0.14;
+      if (taperScore > 0.25) jawScore += 0.10;
+      if (taperScore > 0.40 && angleScore > 0.30) jawScore += 0.10;
+      if (ovalScore > 0.30 && midScore > 0.25) jawScore += 0.08;
+      if (angleScore > 0.45) jawScore += 0.06;
+    } else {
+      jawScore *= 0.85;
+    }
+
+    // Гримаса / низкая симметрия → челюсть из landmarks врёт
+    // (на ¾ ракурсе симметрию не используем как повод резать jaw)
+    var neutralExpr = (expressions && expressions.neutral) ? expressions.neutral : 1;
+    var maxExpr = 0;
+    if (expressions) {
+      ['happy','sad','angry','fearful','disgusted','surprised'].forEach(function (k) {
+        if (expressions[k] > maxExpr) maxExpr = expressions[k];
+      });
+    }
+    if (!isAngled) {
+      if (symmetryScore < 0.60) jawScore *= 0.78;
+      if (symmetryScore < 0.52) jawScore *= 0.85;
+    } else {
+      // ¾ ракурс сам по себе занижает jaw metrics — чуть подтягиваем
+      jawScore = Math.min(0.94, jawScore + 0.08);
+    }
+    if (maxExpr > 0.35) jawScore *= 0.88;
+    if (maxExpr > 0.55) jawScore *= 0.85;
+    if (neutralExpr < 0.35) jawScore *= 0.85;
+
+    jawScore = Math.min(0.94, Math.max(0.12, jawScore));
+
+    var fatPenalty = 0;
+    if (chinHeight < 0.100) fatPenalty += 0.65;
+    else if (chinHeight < 0.125) fatPenalty += 0.38;
+    else if (chinHeight < 0.148) fatPenalty += 0.16;
+    else if (chinHeight < 0.168) fatPenalty += 0.07;
+    if (selfieTop && chinHeight < 0.16) fatPenalty += 0.08;
+
+    var leftEyeW = dist(leftEye[0], leftEye[3]);
+    var leftEyeH = (dist(leftEye[1], leftEye[5]) + dist(leftEye[2], leftEye[4])) / 2;
+    var eyeAspect = leftEyeH / (leftEyeW + 1e-6);
+    var eyeShape, eyeShapeTier;
+    if (eyeAspect > 0.38) { eyeShape = 'Круглые'; eyeShapeTier = 'T2'; }
+    else if (eyeAspect > 0.26) { eyeShape = 'Миндалевидные'; eyeShapeTier = 'T1'; }
+    else { eyeShape = 'Узкие / монолид'; eyeShapeTier = 'T3'; }
+
+    var browMidY = (leftBrow[2].y + rightBrow[2].y) / 2;
+    var eyeMidY = (leftEye[0].y + rightEye[3].y) / 2;
+    var browGap = (eyeMidY - browMidY) / (faceHeight + 1e-6);
+    var browThicknessProxy = Math.abs(leftBrow[2].y - leftBrow[0].y) / (faceHeight + 1e-6);
+    var browDesc, browTier;
+    if (browGap < 0.065 && browThicknessProxy > 0.012) {
+      browDesc = 'Низкопосаженные, густые'; browTier = 'T1';
+    } else if (browGap < 0.095) {
+      browDesc = 'Среднепосаженные, средней густоты'; browTier = 'T2';
+    } else {
+      browDesc = 'Высокопосаженные / редкие'; browTier = 'T3';
+    }
+
+    // Губы: корректные landmarks 51 (верх внешней) и 57 (низ внешней), ширина 48–54
+    var lipHeight = dist(positions[51], positions[57]);
+    var mouthWidth = dist(positions[48], positions[54]);
+    var lipRatio = lipHeight / (mouthWidth + 1e-6);
+    var isMale = gender === 'male';
+    var lipDesc, lipTier;
+    // Пороги подогнаны под реальные пропорции 68-point (раньше занижали почти всех)
+    if (isMale) {
+      if (lipRatio > 0.42) { lipDesc = 'Пухлые'; lipTier = 'T2'; }
+      else if (lipRatio > 0.28) { lipDesc = 'Средней пухлости'; lipTier = 'T1'; }
+      else { lipDesc = 'Тонкие'; lipTier = 'T3'; }
+    } else {
+      if (lipRatio > 0.45) { lipDesc = 'Пухлые'; lipTier = 'T1'; }
+      else if (lipRatio > 0.32) { lipDesc = 'Средние'; lipTier = 'T2'; }
+      else { lipDesc = 'Тонкие'; lipTier = 'T3'; }
+    }
+
+    var skin = sampleSkin(imgEl, box, positions);
+    var r = skin.r, g = skin.g, b = skin.b, luminance = skin.luminance, variance = skin.variance;
+    var toneDesc, toneTier;
+    if (luminance > 180) {
+      toneDesc = 'Светлый / фарфоровый'; toneTier = 'T1';
+    } else if (luminance > 130) {
+      toneDesc = 'Медовый / светлый'; toneTier = 'T2';
+    } else if (luminance > 80) {
+      toneDesc = 'Смуглый / оливковый'; toneTier = 'T1';
+    } else {
+      toneDesc = 'Тёмный / глубокий'; toneTier = 'T3';
+    }
+    if (r > 100 && g > 90 && b < g * 0.85 && luminance > 100 && luminance < 170) {
+      toneDesc += ' (тёплый/жёлтый подтон)';
+    }
+
+    // Текстура кожи: строже к неровностям
+    var clarityScore = 1 - Math.min(1, variance / 2000);
+    var clarityDesc;
+    if (clarityScore > 0.75) clarityDesc = 'Чистая, гладкая кожа';
+    else if (clarityScore > 0.52) clarityDesc = 'Умеренная текстура / лёгкие неровности';
+    else clarityDesc = 'Заметная текстура, возможны акне/пигментация';
+
+    var eyeColor = estimateEyeColor(imgEl, leftEye, rightEye);
+
+    var agePenalty = 0;
+    if (age > 40) agePenalty += 0.20;
+    if (age > 50) agePenalty += 0.30;
+    if (age > 60) agePenalty += 0.25;
+    if (clarityScore < 0.50 && age > 35) agePenalty += 0.25;
+
+    /*
+      КАЛИБРОВКА v5:
+      - дефекты → 2.5–4.8
+      - нормис → 5.0–6.3
+      - выше среднего → 6.4–7.3
+      - model / looksmaxed → 7.6–8.6
+      - топ (Степанов+) → 8.5–9.0
+      - 9.1–9.4 только почти идеал
+      Геометрия (jaw/midface/symmetry) весит больше, чем «студийная кожа».
+    */
+    /*
+      База + непрерывные вклады.
+      Обычное селфи → ~5.5–6.5
+      Model frontal → ~7.6–8.5
+      Топ → 8.6–9.2
+    */
+    var score = 5.45;
+
+    score += (symmetryScore - 0.58) * 2.6;
+    if (symmetryScore < 0.50) score -= 0.35;
+
+    // Челюсть — главный драйвер
+    score += (jawScore - 0.48) * 3.4;
+    score -= fatPenalty * 1.55;
+    if (jawScore < 0.40) score -= 0.35;
+
+    // Кожа — ограниченный вклад
+    score += Math.min(0.40, (clarityScore - 0.52) * 1.5);
+    if (clarityScore < 0.45) score -= 0.30;
+
+    if (eyeShapeTier === 'T1') score += 0.22;
+    if (eyeShapeTier === 'T3') score -= 0.12;
+    if (browTier === 'T1' && isMale) score += 0.15;
+    if (browTier === 'T3') score -= 0.12;
+    if (!isMale && lipTier === 'T1') score += 0.20;
+    if (!isMale && lipTier === 'T3') score -= 0.20;
+    if (eyeColor.tier === 'T1') score += 0.12;
+
+    score -= agePenalty;
+
+    // Не-нейтральное лицо (гримаса, сильная эмоция) — геометрия ненадёжна, балл ниже
+    if (neutralExpr < 0.45) score -= 0.35;
+    if (neutralExpr < 0.30) score -= 0.40;
+    if (maxExpr > 0.45) score -= 0.30;
+    if (maxExpr > 0.65) score -= 0.35;
+
+    score *= (0.93 + 0.07 * det.detection.score);
+
+    // Селфи ≈ угол сверху. Крупный studio-headshot у краёв — НЕ селфи.
+    var fbox = det.detection.box;
+    var imgW = imgEl.naturalWidth || imgEl.width;
+    var imgH = imgEl.naturalHeight || imgEl.height;
+    var faceFill = (fbox.width * fbox.height) / (imgW * imgH + 1e-6);
+    var atBorder = fbox.y < imgH * 0.02 || (fbox.y + fbox.height) > imgH * 0.98
+                || fbox.x < imgW * 0.015 || (fbox.x + fbox.width) > imgW * 0.985;
+    // Обрезка только если лицо мелкое и прижато к краю
+    var isSelfieShot = selfieTop || (atBorder && faceFill < 0.10);
+
+    // Бонусы
+    if (jawScore > 0.58 && symmetryScore > 0.65 && fatPenalty < 0.10) score += 0.28;
+    if (jawScore > 0.68 && symmetryScore > 0.72 && fatPenalty < 0.07) score += 0.32;
+    if (jawScore > 0.78 && symmetryScore > 0.78 && fatPenalty < 0.05 && !isSelfieShot) score += 0.28;
+
+    // Портрет анфас (не селфи): model-path
+    if (!isSelfieShot && symmetryScore > 0.68 && fatPenalty < 0.10 && clarityScore > 0.50) {
+      score += 0.45;
+    }
+    if (!isSelfieShot && jawScore > 0.58 && symmetryScore > 0.68) {
+      score += 0.35;
+    }
+    if (!isSelfieShot && jawScore > 0.68 && symmetryScore > 0.72 && fatPenalty < 0.08) {
+      score += 0.30;
+    }
+
+    if (fatPenalty >= 0.15 && jawScore < 0.52) score -= 0.40;
+    if (symmetryScore < 0.50 && jawScore < 0.48) score -= 0.30;
+    if (selfieTop) score -= 0.25;
+
+    // Потолки
+    if (jawScore < 0.40) score = Math.min(score, 5.8);
+    if (jawScore < 0.48) score = Math.min(score, 6.4);
+    if (jawScore < 0.56) score = Math.min(score, 7.1);
+    if (jawScore < 0.64) score = Math.min(score, 7.7);
+    if (jawScore < 0.72) score = Math.min(score, 8.3);
+    if (jawScore < 0.80) score = Math.min(score, 8.8);
+
+    if (symmetryScore < 0.55) score = Math.min(score, 6.3);
+    if (symmetryScore < 0.65) score = Math.min(score, 7.3);
+    if (symmetryScore < 0.74) score = Math.min(score, 8.2);
+
+    if (fatPenalty >= 0.12) score = Math.min(score, 6.2);
+    if (fatPenalty >= 0.07) score = Math.min(score, 7.4);
+
+    // Селфи (угол/обрезка) — макс 7.1
+    if (isSelfieShot) score = Math.min(score, 7.1);
+
+    // 9.0+ только не-селфи + сильная геометрия
+    if (!(!isSelfieShot && jawScore >= 0.78 && symmetryScore >= 0.76 && fatPenalty < 0.05)) {
+      score = Math.min(score, 8.8);
+    }
+
+    if (age < 13) score = Math.min(score, 7.2);
+    else if (age < 15) score = Math.min(score, 7.8);
+
+    score = Math.max(1.0, Math.min(9.2, score));
+    score = Math.round(score * 10) / 10;
+
+    var label;
+    if (score >= 9.0) label = 'Супермодельный уровень';
+    else if (score >= 8.3) label = 'Топ-уровень / сильный looksmax';
+    else if (score >= 7.5) label = 'Очень привлекательный / looksmaxed';
+    else if (score >= 6.5) label = 'Выше среднего, хорошие черты';
+    else if (score >= 5.0) label = 'Среднестатистическая внешность';
+    else if (score >= 3.0) label = 'Ниже среднего — есть над чем работать';
+    else label = 'Серьёзные визуальные минусы';
+    if (age < 16) label += ' · пропорции ещё формируются';
+
+    var minuses = [];
+    if (fatPenalty > 0.15) minuses.push('Признаки лишнего объёма в нижней трети лица / слабая дефиниция челюсти');
+    if (clarityScore < 0.52) minuses.push('Замечены неровности кожи, возможны акне или пигментация');
+    if (symmetryScore < 0.55) minuses.push('Заметная асимметрия лица');
+    if (jawScore < 0.50) minuses.push('Слабая / мягкая линия челюсти (jawline)');
+    if (browTier === 'T3') minuses.push('Брови высокопосаженные или редкие — снижают контраст лица');
+    if (age > 40 && clarityScore < 0.55) minuses.push('Возрастные изменения текстуры кожи / возможные морщины');
+    if (eyeShapeTier === 'T3') minuses.push('Узкий разрез глаз — меньше «открытости» взгляда');
+    if (!isMale && lipTier === 'T3') minuses.push('Тонкие губы');
+    if (neutralExpr < 0.40 || maxExpr > 0.45) minuses.push('Сильная мимика/гримаса — оценка занижена; для честного балла нужно нейтральное лицо');
+    if (age < 16 && jawScore < 0.55) {
+      minuses.push('В подростковом возрасте челюсть и midface ещё дозревают — балл может вырасти с возрастом');
+    }
+    if (minuses.length === 0) minuses.push('Критических минусов не выявлено — работай над деталями и уходом');
+
+    var advice = [];
+    if (fatPenalty > 0.10 || jawScore < 0.55) {
+      advice.push('Снизь процент жира (дефицит калорий + силовые) — jawline проявляется при BF ~10–14% у мужчин, ~18–22% у женщин');
+      advice.push('Mewing / правильная осанка языка и шеи может слегка улучшить контур нижней трети со временем');
+    }
+    if (clarityScore < 0.65) {
+      advice.push('Скинкеар: мягкое очищение, ретиноид (адапален/третиноин), SPF 50 каждый день, ниацинамид');
+      advice.push('При акне — дерматолог, возможны бензоилпероксид / препараты по назначению');
+    }
+    if (browTier === 'T3') {
+      advice.push(isMale
+        ? 'Не выщипывай брови в тонкую нитку; можно слегка затемнить карандашом/гелем для плотности'
+        : 'Форма и плотность бровей: ламинирование, покраска или микроблейдинг по вкусу');
+    }
+    advice.push('Сон 7–9 ч, вода, меньше сахара — кожа и отёчность лица реагируют быстро');
+    advice.push('Фото для оценки: нейтральный свет, анфас, без фильтров и сильного угла снизу/сверху');
+    if (score < 7.5) advice.push('Причёска и tip (подстриженные волосы/борода) часто дают +0.5–1 визуально без хирургии');
+    if (age > 30) advice.push('Ретиноиды + SPF — лучшая долгосрочная защита от возрастных изменений');
+
+    return {
+      score: score,
+      label: label,
+      gender: isMale ? 'Мужской' : 'Женский',
+      genderProb: (genderProb * 100).toFixed(0),
+      age: age,
+      params: [
+        { name: 'Чистота кожи', value: clarityDesc, tier: clarityScore > 0.78 ? 'T1' : clarityScore > 0.55 ? 'T2' : 'T3' },
+        { name: 'Тон кожи', value: toneDesc, tier: toneTier },
+        { name: 'Губы', value: lipDesc, tier: lipTier },
+        { name: 'Брови', value: browDesc, tier: browTier },
+        { name: 'Цвет глаз (оценка)', value: eyeColor.desc, tier: eyeColor.tier },
+        { name: 'Форма глаз', value: eyeShape, tier: eyeShapeTier },
+        { name: 'Симметрия', value: (symmetryScore * 100).toFixed(0) + '%', tier: symmetryScore > 0.8 ? 'T1' : symmetryScore > 0.65 ? 'T2' : 'T3' },
+        { name: 'Челюсть / контур', value: (jawScore > 0.7 ? 'Выраженная' : jawScore > 0.5 ? 'Средняя' : 'Мягкая') + ' (' + (jawScore * 100).toFixed(0) + ')', tier: jawScore > 0.7 ? 'T1' : jawScore > 0.5 ? 'T2' : 'T3' },
+        { name: 'Soft tissue / объём', value: fatPenalty < 0.06 ? 'Низкий' : fatPenalty < 0.15 ? 'Умеренный' : 'Повышенный', tier: fatPenalty < 0.06 ? 'T1' : fatPenalty < 0.15 ? 'T2' : 'T3' },
+      ],
+      minuses: minuses,
+      advice: advice
+    };
+  }
+
+  function sampleSkin(imgEl, box, positions) {
+    var c = document.createElement('canvas');
+    c.width = imgEl.naturalWidth;
+    c.height = imgEl.naturalHeight;
+    var ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgEl, 0, 0);
+    var scaleX = imgEl.naturalWidth / imgEl.width;
+    var scaleY = imgEl.naturalHeight / imgEl.height;
+
+    var regions = [positions[1], positions[15], positions[3], positions[13], positions[31], positions[35]];
+    var rSum = 0, gSum = 0, bSum = 0, n = 0;
+    var values = [];
+    var sampleR = Math.max(4, Math.floor(box.width * 0.04));
+
+    regions.forEach(function (p) {
+      var cx = Math.floor(p.x * scaleX);
+      var cy = Math.floor(p.y * scaleY);
+      for (var dy = -sampleR; dy <= sampleR; dy += 2) {
+        for (var dx = -sampleR; dx <= sampleR; dx += 2) {
+          var x = cx + dx, y = cy + dy;
+          if (x < 0 || y < 0 || x >= c.width || y >= c.height) continue;
+          var d = ctx.getImageData(x, y, 1, 1).data;
+          if (d[0] < 30 || d[0] > 250) continue;
+          rSum += d[0]; gSum += d[1]; bSum += d[2];
+          values.push((d[0] + d[1] + d[2]) / 3);
+          n++;
+        }
+      }
+    });
+
+    if (n === 0) return { r: 150, g: 120, b: 100, luminance: 130, variance: 500 };
+
+    var r = rSum / n, g = gSum / n, b = bSum / n;
+    var luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    var mean = values.reduce(function (a, v) { return a + v; }, 0) / values.length;
+    var variance = values.reduce(function (a, v) { return a + (v - mean) * (v - mean); }, 0) / values.length;
+    return { r: r, g: g, b: b, luminance: luminance, variance: variance };
+  }
+
+  function estimateEyeColor(imgEl, leftEye, rightEye) {
+    var c = document.createElement('canvas');
+    c.width = imgEl.naturalWidth;
+    c.height = imgEl.naturalHeight;
+    var ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgEl, 0, 0);
+    var scaleX = imgEl.naturalWidth / imgEl.width;
+    var scaleY = imgEl.naturalHeight / imgEl.height;
+
+    var cx = Math.floor(((leftEye[0].x + leftEye[3].x) / 2) * scaleX);
+    var cy = Math.floor(((leftEye[1].y + leftEye[4].y) / 2) * scaleY);
+    var rad = 3;
+    var rS = 0, gS = 0, bS = 0, n = 0;
+    for (var dy = -rad; dy <= rad; dy++) {
+      for (var dx = -rad; dx <= rad; dx++) {
+        var x = cx + dx, y = cy + dy;
+        if (x < 0 || y < 0 || x >= c.width || y >= c.height) continue;
+        var d = ctx.getImageData(x, y, 1, 1).data;
+        if (d[0] > 220 && d[1] > 220 && d[2] > 220) continue;
+        if (d[0] < 25 && d[1] < 25 && d[2] < 25) continue;
+        rS += d[0]; gS += d[1]; bS += d[2]; n++;
+      }
+    }
+    if (n === 0) return { desc: 'Не определён', tier: 'T3' };
+    var R = rS / n, G = gS / n, B = bS / n;
+
+    if (B > R && B > G && B > 90) return { desc: 'Голубые / серо-голубые', tier: 'T1' };
+    if (G > R && G > 70 && B > 50 && Math.abs(G - B) < 40) return { desc: 'Зелёные / hazel', tier: 'T1' };
+    if (R > 80 && G > 50 && B < 60 && R > B * 1.3) return { desc: 'Карие / янтарные', tier: 'T2' };
+    if (R < 70 && G < 60 && B < 55) return { desc: 'Тёмно-карие', tier: 'T3' };
+    if (G > B && R > 60) return { desc: 'Ореховые (hazel)', tier: 'T1' };
+    return { desc: 'Карие', tier: 'T2' };
+  }
+
+  function displayResults(a) {
+    document.getElementById('results-placeholder').classList.add('hidden');
+    document.getElementById('results').classList.remove('hidden');
+
+    var scoreEl = document.getElementById('score-value');
+    scoreEl.textContent = a.score.toFixed(1);
+    var color = '#ff4466';
+    if (a.score >= 7) color = '#39ff14';
+    else if (a.score >= 5) color = '#00f5ff';
+    else if (a.score >= 3.5) color = '#ffaa00';
+    scoreEl.style.color = color;
+
+    document.getElementById('score-label').textContent = a.label + ' · ' + a.gender + ' (~' + a.age + ' лет)';
+    document.getElementById('score-bar').style.width = (a.score * 10) + '%';
+    document.getElementById('score-bar').style.background = 'linear-gradient(90deg, ' + color + ', #ff00aa)';
+
+    document.getElementById('params-list').innerHTML = a.params.map(function (p) {
+      return '<div class="flex justify-between items-start gap-2 border-b border-white/5 pb-2">' +
+        '<span class="text-gray-400">' + p.name + '</span>' +
+        '<span class="text-right text-cyan-100/90">' + p.value +
+        ' <span class="text-[10px] text-cyan-500/50 ml-1">' + p.tier + '</span></span></div>';
+    }).join('');
+
+    document.getElementById('minuses-list').innerHTML = a.minuses.map(function (m) {
+      return '<li class="flex gap-2"><span class="text-pink-500 shrink-0">▸</span><span>' + m + '</span></li>';
+    }).join('');
+
+    document.getElementById('advice-list').innerHTML = a.advice.map(function (m) {
+      return '<li class="flex gap-2"><span class="text-green-400 shrink-0">▸</span><span>' + m + '</span></li>';
+    }).join('');
+  }
+
+  // Boot: face-api script is above this block (no defer) → faceapi should exist
+  if (typeof faceapi !== 'undefined') {
+    loadModels();
+  } else {
+    setStatus('Ошибка: faceapi не определён. CDN заблокирован?');
+    console.error('faceapi global missing');
+  }
+})();
+  </script>
+</body>
+</html>
